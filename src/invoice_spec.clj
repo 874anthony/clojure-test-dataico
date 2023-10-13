@@ -1,6 +1,34 @@
 (ns invoice-spec
   (:require
-    [clojure.spec.alpha :as s]))
+    [clojure.spec.alpha :as s]
+    [clojure.data.json :as json]))
+
+(defn load-json
+  [path]
+  (with-open [reader (clojure.java.io/reader path)]
+  (json/read reader)))
+
+(def json-data (load-json "../invoice.json"))
+
+(def initial-key (keys json-data))
+(def get-invoice-data (get-in json-data initial-key))
+(def keysInvoice (keys get-invoice-data))
+
+(defn getKeysAsKeywords
+  [m]
+  (map keyword (keys m)))
+
+(def clojure-map
+  (zipmap
+    (vec (getKeysAsKeywords get-invoice-data))
+    (let [invoice-data (get json-data "invoice")]
+      (vec (map #(get invoice-data %) keysInvoice)))))
+
+;(println clojure-map)
+
+(def isInvoiceMap (sequential? (get (get json-data "invoice") "items")))
+(println (get (get json-data "invoice") "items"))
+(println isInvoiceMap)
 
 (defn not-blank? [value] (-> value clojure.string/blank? not))
 (defn non-empty-string? [x] (and (string? x) (not-blank? x)))
