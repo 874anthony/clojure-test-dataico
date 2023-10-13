@@ -10,25 +10,38 @@
 
 (def json-data (load-json "../invoice.json"))
 
-(def initial-key (keys json-data))
-(def get-invoice-data (get-in json-data initial-key))
-(def keysInvoice (keys get-invoice-data))
+(defn transform-key [k path]
+  (let [full-path (clojure.string/join "/" (conj path k))]
+    (case full-path
+      "invoice" :invoice
+      "customer" :customer
+      "invoice/issue_date" :invoice/issue-date
+      "invoice/order_reference" :invoice/order-reference
+      "invoice/items" :invoice/items
+      "invoice/items/price" :invoice-item/price
+      "invoice/items/quantity" :invoice-item/quantity
+      "invoice/items/sku" :invoice-item/sku
+      "invoice/items/taxes" :invoice-item/taxes
+      "invoice/items/taxes/tax_category" :tax/category
+      "invoice/items/taxes/tax_rate" :tax/rate
+      "invoice/customer" :invoice/customer
+      "invoice/customer/company_name" :customer/name
+      "invoice/customer/email" :customer/email
+      (keyword k))))
 
-(defn getKeysAsKeywords
-  [m]
-  (map keyword (keys m)))
+(defn nested-map->keywords
+  ([data] (nested-map->keywords data []))
+  ([data path]
+   (cond
+     (map? data) (into {} (for [[k v] data]
+                            (let [new-key (transform-key k path)
+                                  new-path (conj path (name new-key))]
+                              [new-key (nested-map->keywords v new-path)])))
+     (vector? data) (vec (map #(nested-map->keywords % path) data))
+     :else data)))
 
-(def clojure-map
-  (zipmap
-    (vec (getKeysAsKeywords get-invoice-data))
-    (let [invoice-data (get json-data "invoice")]
-      (vec (map #(get invoice-data %) keysInvoice)))))
-
-;(println clojure-map)
-
-(def isInvoiceMap (sequential? (get (get json-data "invoice") "items")))
-(println (get (get json-data "invoice") "items"))
-(println isInvoiceMap)
+(def invoice (nested-map->keywords json-data))
+(println invoice)
 
 (defn not-blank? [value] (-> value clojure.string/blank? not))
 (defn non-empty-string? [x] (and (string? x) (not-blank? x)))
@@ -39,7 +52,7 @@
                                        :customer/email]))
 
 (s/def :tax/rate double?)
-(s/def :tax/category #{:iva})
+(s/def :tax/category #{:IVA})
 (s/def ::tax (s/keys :req [:tax/category
                            :tax/rate]))
 (s/def :invoice-item/taxes (s/coll-of ::tax :kind vector? :min-count 1))
@@ -61,3 +74,5 @@
   (s/keys :req [:invoice/issue-date
                 :invoice/customer
                 :invoice/items]))
+
+(s/valid? ::invoice invoice)
